@@ -5,8 +5,7 @@
 1. **Import the repo** in [Vercel](https://vercel.com) and connect your Git provider.
 
 2. **Root directory**  
-   If the repo root is not the app folder, set:
-   - Root Directory: `Studio 0S /brightline-studio-os` (or the path to this folder)
+   Leave empty (default)—this repo contains only Studio OS.
 
 3. **Build command**  
    The default uses the `build` script: `prisma generate && next build`

@@ -2,6 +2,8 @@
 
 Mission control for your photography studio.
 
+> **Standalone repo** — Studio OS lives here only. No Brightline marketing/portal code.
+
 ## Live preview
 
 **Milestone 1 — Visual Mission Control Preview** is deployed at:
