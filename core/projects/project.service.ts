@@ -16,7 +16,7 @@ export type CreateProjectInput = {
 
 export type UpdateProjectInput = {
   name?: string;
-  clientId?: string;
+  clientId?: string | null;
   status?: ProjectStatus;
   shootDate?: Date | string | null;
   notes?: string | null;
