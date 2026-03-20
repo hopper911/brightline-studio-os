@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getDb } from "@/lib/db";
+import { isVercelVisualOnly } from "@/lib/runtime/vercel";
 
 export type FeatureKey = "automation" | "advancedAgents" | "analytics";
 
@@ -41,7 +42,16 @@ function safeParseLimits(value: unknown): Entitlements {
   }
 }
 
+const VERCEL_SYNTHETIC_WORKSPACE = {
+  id: "vercel-visual",
+  name: "Vercel Visual",
+  ownerId: "vercel-user",
+  planId: DEFAULT_PLAN_ID,
+};
+
 export function getWorkspace(): { id: string; name: string; ownerId: string; planId: string } {
+  if (isVercelVisualOnly()) return VERCEL_SYNTHETIC_WORKSPACE;
+
   const db = getDb();
   const row = db
     .prepare("SELECT id, name, owner_id AS ownerId, plan_id AS planId FROM workspaces ORDER BY created_at ASC LIMIT 1")
@@ -66,6 +76,15 @@ export function getWorkspace(): { id: string; name: string; ownerId: string; pla
 }
 
 export function getWorkspacePlan(): Plan {
+  if (isVercelVisualOnly()) {
+    return {
+      id: DEFAULT_PLAN_ID,
+      name: "Starter",
+      price: 0,
+      limits: safeParseLimits(""),
+    };
+  }
+
   const db = getDb();
   const workspace = getWorkspace();
 

@@ -2,6 +2,7 @@ import "server-only";
 
 import { getDb } from "@/lib/db";
 import { resolveWorkspaceId } from "@/lib/db/workspace";
+import { isVercelVisualOnly } from "@/lib/runtime/vercel";
 
 export type PhotographyType = "architecture" | "real_estate" | "corporate" | "events" | "mixed";
 export type MainGoal = "get_more_clients" | "streamline_workflow" | "scale_business";
@@ -61,6 +62,8 @@ function rowToProfile(row: Record<string, unknown>): WorkspaceProfile {
 }
 
 export function getWorkspaceProfile(workspaceId?: string): WorkspaceProfile | null {
+  if (isVercelVisualOnly()) return null;
+
   const db = getDb();
   const wsId = resolveWorkspaceId(workspaceId);
   const row = db
@@ -81,6 +84,8 @@ export function getWorkspaceProfile(workspaceId?: string): WorkspaceProfile | nu
 }
 
 export function hasWorkspaceProfile(workspaceId?: string): boolean {
+  if (isVercelVisualOnly()) return true;
+
   const db = getDb();
   const wsId = resolveWorkspaceId(workspaceId);
   const row = db

@@ -112,17 +112,20 @@ function countDraftsByRoom(drafts: Draft[]): Record<string, { total: number; byT
   return out;
 }
 
+const DEFAULT_PLAN = {
+  id: "starter",
+  name: "Starter",
+  price: 0,
+  limits: { automation: false, advancedAgents: false, analytics: false } as Entitlements,
+};
+
 export async function getMissionControlData(): Promise<MissionControlData> {
-  const plan = getWorkspacePlan();
-  const { workspaceId } = await requireWorkspaceContext();
-  const workspaceProfile = getWorkspaceProfile(workspaceId);
-  const recommendedWorkflows = getDefaultWorkflows(workspaceProfile);
   if (isVercelVisualOnly()) {
     return {
-      plan: { id: plan.id, name: plan.name, price: plan.price },
-      entitlements: plan.limits,
-      workspaceProfile,
-      recommendedWorkflows,
+      plan: { id: DEFAULT_PLAN.id, name: DEFAULT_PLAN.name, price: DEFAULT_PLAN.price },
+      entitlements: DEFAULT_PLAN.limits,
+      workspaceProfile: null,
+      recommendedWorkflows: getDefaultWorkflows(null),
       summaryMetrics: [
         { id: "activeProjects", label: "Active Projects", value: "—", hint: "Vercel visual-only" },
         { id: "awaitingApproval", label: "Pending Approvals", value: "—", hint: "Vercel visual-only" },
@@ -141,6 +144,11 @@ export async function getMissionControlData(): Promise<MissionControlData> {
       projectsByStatus: {},
     };
   }
+
+  const plan = getWorkspacePlan();
+  const { workspaceId } = await requireWorkspaceContext();
+  const workspaceProfile = getWorkspaceProfile(workspaceId);
+  const recommendedWorkflows = getDefaultWorkflows(workspaceProfile);
 
   const demo = await isDemoMode();
   if (demo) {

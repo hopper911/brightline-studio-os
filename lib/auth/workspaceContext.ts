@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { cookies } from "next/headers";
 import { getDb } from "@/lib/db";
 import { auth } from "@/lib/auth/auth";
+import { isVercelVisualOnly } from "@/lib/runtime/vercel";
 
 export type WorkspaceRole = "owner" | "admin" | "member";
 
@@ -97,11 +98,22 @@ function validateContextFromDb(params: { workspaceId: string; userId: string }):
   return { workspaceId: params.workspaceId, userId: params.userId, role: normalizeRole(row.role) };
 }
 
+const VERCEL_SYNTHETIC_CTX: WorkspaceContext = {
+  workspaceId: "vercel-visual",
+  userId: "vercel-user",
+  role: "owner",
+};
+
 /**
  * Returns the active workspace context, creating a default workspace/user and
  * setting cookies if none exist.
  */
 export async function requireWorkspaceContext(): Promise<WorkspaceContext> {
+  if (isVercelVisualOnly()) {
+    await setCookieIds({ workspaceId: VERCEL_SYNTHETIC_CTX.workspaceId, userId: VERCEL_SYNTHETIC_CTX.userId });
+    return VERCEL_SYNTHETIC_CTX;
+  }
+
   const session = await auth();
   const sessionUser = session?.user;
   if (sessionUser?.id && sessionUser.workspaceId) {

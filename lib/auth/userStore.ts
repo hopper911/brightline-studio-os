@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 import { getDb } from "@/lib/db";
+import { isVercelVisualOnly } from "@/lib/runtime/vercel";
 
 export type DbUser = {
   id: string;
@@ -24,6 +25,16 @@ function normalizeRole(value: unknown): DbUser["role"] {
 }
 
 export function getOrCreateUserByEmail(email: string): DbUser {
+  if (isVercelVisualOnly()) {
+    const normalized = email.trim().toLowerCase();
+    return {
+      id: "vercel-user",
+      email: normalized,
+      role: "owner",
+      workspaceId: "vercel-visual",
+    };
+  }
+
   const db = getDb();
   const now = new Date().toISOString();
   const normalizedEmail = email.trim().toLowerCase();
