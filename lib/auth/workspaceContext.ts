@@ -2,9 +2,14 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 import { cookies } from "next/headers";
-import { getDb } from "@/lib/db";
-import { auth } from "@/lib/auth/auth";
 import { isVercelVisualOnly } from "@/lib/runtime/vercel";
+
+/** Lazy — avoids loading better-sqlite3 until needed (Vercel dashboard never calls). */
+function getDbLazy(): ReturnType<typeof import("@/lib/db").getDb> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getDb } = require("@/lib/db") as typeof import("@/lib/db");
+  return getDb();
+}
 
 export type WorkspaceRole = "owner" | "admin" | "member";
 
@@ -45,7 +50,7 @@ async function setCookieIds(params: { workspaceId: string; userId: string }): Pr
 }
 
 function ensureBootstrapWorkspaceAndUser(): WorkspaceContext {
-  const db = getDb();
+  const db = getDbLazy();
   const now = new Date().toISOString();
 
   const existing = db
@@ -87,7 +92,7 @@ function ensureBootstrapWorkspaceAndUser(): WorkspaceContext {
 }
 
 function validateContextFromDb(params: { workspaceId: string; userId: string }): WorkspaceContext | null {
-  const db = getDb();
+  const db = getDbLazy();
   const row = db
     .prepare("SELECT id, role, workspace_id AS workspaceId FROM users WHERE id = ? LIMIT 1")
     .get(params.userId) as { id: string; role: string; workspaceId: string } | undefined;
@@ -110,10 +115,11 @@ const VERCEL_SYNTHETIC_CTX: WorkspaceContext = {
  */
 export async function requireWorkspaceContext(): Promise<WorkspaceContext> {
   if (isVercelVisualOnly()) {
-    await setCookieIds({ workspaceId: VERCEL_SYNTHETIC_CTX.workspaceId, userId: VERCEL_SYNTHETIC_CTX.userId });
+    // Do not call cookies().set() here — Server Components cannot mutate cookies (Next.js 15).
     return VERCEL_SYNTHETIC_CTX;
   }
 
+  const { auth } = await import("@/lib/auth/auth");
   const session = await auth();
   const sessionUser = session?.user;
   if (sessionUser?.id && sessionUser.workspaceId) {
@@ -145,4 +151,3 @@ export async function ensureWorkspaceContextCookies(): Promise<WorkspaceContext>
   await setCookieIds({ workspaceId: ctx.workspaceId, userId: ctx.userId });
   return ctx;
 }
-

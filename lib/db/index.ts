@@ -8,7 +8,6 @@
  * Use getDb() from server-side only (e.g. API routes, server actions).
  */
 
-import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
@@ -17,7 +16,15 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "studio.db");
 const SCHEMA_PATH = path.join(process.cwd(), "lib", "db", "schema.sql");
 
-let db: Database.Database | null = null;
+/** Instance type only — avoids loading the native addon at module init (needed for Vercel). */
+type SqliteDb = InstanceType<typeof import("better-sqlite3").default>;
+
+let db: SqliteDb | null = null;
+
+function loadBetterSqlite(): typeof import("better-sqlite3").default {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require("better-sqlite3");
+}
 
 function ensureDataDir(): void {
   if (!fs.existsSync(DATA_DIR)) {
@@ -25,7 +32,7 @@ function ensureDataDir(): void {
   }
 }
 
-function applySchema(database: Database.Database): void {
+function applySchema(database: SqliteDb): void {
   // Pre-migrations for older DBs:
   // Some historical installs have tables without `workspace_id`, and `schema.sql`
   // includes indexes on `workspace_id` which would fail to apply. We add columns
@@ -269,8 +276,9 @@ function applySchema(database: Database.Database): void {
  * and applies schema.sql on first call. Subsequent calls return the
  * same instance.
  */
-export function getDb(): Database.Database {
+export function getDb(): SqliteDb {
   if (db === null) {
+    const Database = loadBetterSqlite();
     ensureDataDir();
     db = new Database(DB_PATH);
     db.pragma("journal_mode = WAL");
