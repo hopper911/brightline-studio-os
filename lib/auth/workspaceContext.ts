@@ -45,8 +45,14 @@ async function readCookieIds(): Promise<{ workspaceId: string | null; userId: st
 async function setCookieIds(params: { workspaceId: string; userId: string }): Promise<void> {
   const jar = await cookies();
   const base = { httpOnly: true, sameSite: "lax" as const, path: "/" };
-  jar.set(COOKIE_WORKSPACE, params.workspaceId, base);
-  jar.set(COOKIE_USER, params.userId, base);
+  // Next.js 15: cookies can only be mutated in Server Actions / Route Handlers.
+  // If this is accidentally invoked from a Server Component render path, avoid hard-crashing.
+  try {
+    jar.set(COOKIE_WORKSPACE, params.workspaceId, base);
+    jar.set(COOKIE_USER, params.userId, base);
+  } catch {
+    // ignore
+  }
 }
 
 function ensureBootstrapWorkspaceAndUser(): WorkspaceContext {
@@ -128,7 +134,8 @@ export async function requireWorkspaceContext(): Promise<WorkspaceContext> {
       userId: sessionUser.id,
       role: normalizeRole(sessionUser.role),
     };
-    await setCookieIds({ workspaceId: ctx.workspaceId, userId: ctx.userId });
+    // Do not call cookies().set() here — requireWorkspaceContext runs from Server Components.
+    // Use ensureWorkspaceContextCookies() from a Server Action if you need to sync cookies.
     return ctx;
   }
 
