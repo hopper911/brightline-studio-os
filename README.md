@@ -1,8 +1,8 @@
-# Bright Line Studio OS
+# Studio OS
 
 Mission control for your photography studio.
 
-> **Standalone repo** — Studio OS lives here only. No Brightline marketing/portal code.
+> **Standalone repo** — Studio OS lives here only.
 
 ## Live preview
 
