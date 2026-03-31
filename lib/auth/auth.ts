@@ -24,7 +24,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const email = user?.email ?? token.email;
       if (!email) return token;
 
-      const dbUser = getOrCreateUserByEmail(email);
+      const dbUser = await getOrCreateUserByEmail(email);
       token.sub = dbUser.id;
       (token as typeof token & { workspaceId: string; role: "owner" | "admin" | "member" }).workspaceId = dbUser.workspaceId;
       (token as typeof token & { workspaceId: string; role: "owner" | "admin" | "member" }).role = dbUser.role;

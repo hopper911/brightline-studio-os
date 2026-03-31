@@ -18,8 +18,8 @@ import {
   DEMO_PROJECTS,
   DEMO_SUMMARY_METRICS,
 } from "@/lib/studio/demoData";
-import { getWorkspacePlan, type Entitlements } from "@/lib/billing/entitlements";
-import { getWorkspaceProfile, type WorkspaceProfile } from "@/lib/profile/store";
+import { getWorkspacePlanAsync, type Entitlements } from "@/lib/billing/entitlements";
+import { getWorkspaceProfileAsync, type WorkspaceProfile } from "@/lib/profile/store";
 import { getDefaultWorkflows, type RecommendedWorkflow } from "@/lib/workflows";
 import type { EventRecord } from "@/lib/events/logger";
 import type { Approval } from "@/lib/approvals/store";
@@ -145,9 +145,9 @@ export async function getMissionControlData(): Promise<MissionControlData> {
     };
   }
 
-  const plan = getWorkspacePlan();
+  const plan = await getWorkspacePlanAsync();
   const { workspaceId } = await requireWorkspaceContext();
-  const workspaceProfile = getWorkspaceProfile(workspaceId);
+  const workspaceProfile = await getWorkspaceProfileAsync(workspaceId);
   const recommendedWorkflows = getDefaultWorkflows(workspaceProfile);
 
   const demo = await isDemoMode();
@@ -258,9 +258,9 @@ export async function getMissionControlData(): Promise<MissionControlData> {
   const { getAllSessionsForWorkspace } = await import("@/lib/sessions/store");
   const { getRecentHandoffsForWorkspace } = await import("@/lib/handoffs/store");
 
-  const projects = listProjectsForWorkspace(workspaceId);
-  const approvals = getPendingApprovalsForWorkspace(workspaceId);
-  const drafts = getDraftsForWorkspace(workspaceId);
+  const projects = await listProjectsForWorkspace(workspaceId);
+  const approvals = await getPendingApprovalsForWorkspace(workspaceId);
+  const drafts = await getDraftsForWorkspace(workspaceId);
   const events = getEventsForWorkspace(workspaceId);
   const jobs = getJobsForWorkspace(workspaceId, { limit: 100 });
   const jobIndicators = getRecentJobIndicatorsForWorkspace(workspaceId, 5);
@@ -313,9 +313,9 @@ export async function getMissionControlData(): Promise<MissionControlData> {
       import("@/lib/finance/store"),
     ]);
 
-    const reminders = listReminders({ workspaceId, projectId: spotlightId });
-    const invoices = getInvoicesByProjectForWorkspace(workspaceId, spotlightId);
-    const payments = getPaymentsByProjectForWorkspace(workspaceId, spotlightId);
+    const reminders = await listReminders({ workspaceId, projectId: spotlightId });
+    const invoices = await getInvoicesByProjectForWorkspace(workspaceId, spotlightId);
+    const payments = await getPaymentsByProjectForWorkspace(workspaceId, spotlightId);
     const deliverBy = spotlightProject.timeline?.deliverBy ?? null;
 
     projectSpotlight = {

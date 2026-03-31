@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "crypto";
-import { getDb } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 import { isVercelVisualOnly } from "@/lib/runtime/vercel";
 
 export type DbUser = {
@@ -24,7 +24,7 @@ function normalizeRole(value: unknown): DbUser["role"] {
   return "member";
 }
 
-export function getOrCreateUserByEmail(email: string): DbUser {
+export async function getOrCreateUserByEmail(email: string): Promise<DbUser> {
   if (isVercelVisualOnly()) {
     const normalized = email.trim().toLowerCase();
     return {
@@ -35,13 +35,12 @@ export function getOrCreateUserByEmail(email: string): DbUser {
     };
   }
 
-  const db = getDb();
-  const now = new Date().toISOString();
   const normalizedEmail = email.trim().toLowerCase();
 
-  const existing = db
-    .prepare("SELECT id, email, role, workspace_id AS workspaceId FROM users WHERE lower(email) = ? LIMIT 1")
-    .get(normalizedEmail) as { id: string; email: string; role: string; workspaceId: string } | undefined;
+  const existing = await prisma.user.findFirst({
+    where: { email: normalizedEmail },
+    select: { id: true, email: true, role: true, workspaceId: true },
+  });
 
   if (existing?.id) {
     return {
@@ -52,21 +51,40 @@ export function getOrCreateUserByEmail(email: string): DbUser {
     };
   }
 
+  const now = new Date();
   const workspaceId = nextWorkspaceId();
   const userId = nextUserId();
 
-  db.prepare("INSERT INTO workspaces (id, name, owner_id, created_at) VALUES (?, ?, ?, ?)")
-    .run(workspaceId, "My Studio", userId, now);
-  db.prepare("INSERT INTO users (id, email, role, workspace_id, created_at) VALUES (?, ?, ?, ?, ?)")
-    .run(userId, normalizedEmail, "owner", workspaceId, now);
-
-  db.prepare(
-    "INSERT OR IGNORE INTO workspace_settings (workspace_id, ai_mode, created_at, updated_at) VALUES (?, 'local', ?, ?)"
-  ).run(workspaceId, now, now);
-
-  db.prepare(
-    "INSERT OR IGNORE INTO plan_limits (workspace_id, plan, max_projects, max_drafts, max_active_automations, created_at, updated_at) VALUES (?, 'free', 10, 200, 3, ?, ?)"
-  ).run(workspaceId, now, now);
+  await prisma.workspace.create({
+    data: {
+      id: workspaceId,
+      name: "My Studio",
+      ownerId: userId,
+      planId: "starter",
+      createdAt: now,
+      users: {
+        create: {
+          id: userId,
+          email: normalizedEmail,
+          role: "owner",
+          createdAt: now,
+        },
+      },
+      settings: {
+        create: { aiMode: "local", createdAt: now, updatedAt: now },
+      },
+      planLimits: {
+        create: {
+          plan: "free",
+          maxProjects: 10,
+          maxDrafts: 200,
+          maxActiveAutomations: 3,
+          createdAt: now,
+          updatedAt: now,
+        },
+      },
+    },
+  });
 
   return { id: userId, email: normalizedEmail, role: "owner", workspaceId };
 }

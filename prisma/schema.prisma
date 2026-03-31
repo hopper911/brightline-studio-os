@@ -125,3 +125,293 @@ model Asset {
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
+
+// ---------------------------------------------------------------------------
+// Studio OS “mission control” tables (legacy SQLite schema, now Postgres-only)
+// ---------------------------------------------------------------------------
+
+model Workspace {
+  id        String   @id
+  name      String
+  ownerId   String   @map("owner_id")
+  planId    String   @default("starter") @map("plan_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  owner   User      @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  users   User[]
+  profile WorkspaceProfile?
+  settings WorkspaceSettings?
+  planLimits PlanLimits?
+
+  @@map("workspaces")
+}
+
+model Plan {
+  id         String @id
+  name       String
+  price      Int
+  limitsJson String @map("limits_json")
+
+  @@map("plans")
+}
+
+model User {
+  id          String   @id
+  email       String
+  role        String
+  workspaceId String   @map("workspace_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  ownedWorkspace Workspace? @relation("WorkspaceOwner")
+
+  @@index([workspaceId], map: "idx_users_workspace_id")
+  @@unique([email, workspaceId], map: "idx_users_email_workspace")
+  @@map("users")
+}
+
+model WorkspaceProfile {
+  workspaceId        String   @id @map("workspace_id")
+  businessType       String?  @map("business_type")
+  servicesOfferedJson String? @map("services_offered_json")
+  mainLocation       String?  @map("main_location")
+  styleFocusJson     String?  @map("style_focus_json")
+  goalsJson          String?  @map("goals_json")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @default(now()) @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_profile")
+}
+
+model WorkspaceSettings {
+  workspaceId String   @id @map("workspace_id")
+  aiMode      String   @default("local") @map("ai_mode")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_settings")
+}
+
+model PlanLimits {
+  workspaceId          String   @id @map("workspace_id")
+  plan                 String   @default("free")
+  maxProjects          Int      @default(10) @map("max_projects")
+  maxDrafts            Int      @default(200) @map("max_drafts")
+  maxActiveAutomations Int      @default(3) @map("max_active_automations")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @default(now()) @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("plan_limits")
+}
+
+model UsageEvent {
+  id        String   @id
+  workspaceId String @map("workspace_id")
+  userId     String  @map("user_id")
+  eventType  String  @map("event_type")
+  quantity   Int     @default(1)
+  metaJson   String? @map("meta_json")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt], map: "idx_usage_events_workspace_id_created_at")
+  @@map("usage_events")
+}
+
+model StudioProject {
+  id           String   @id
+  workspaceId  String   @map("workspace_id")
+  name         String
+  client       String?
+  type         String?
+  urgency      String?
+  clientType   String?  @map("client_type")
+  stage        String?
+  projectSize  String?  @map("project_size")
+  timelineJson String?  @map("timeline_json")
+  location     String?
+  shootDate    String?  @map("shoot_date")
+  status       String?
+  notes        String?
+  deliverables String?
+  visualDirection String? @map("visual_direction")
+  checklist    String?
+  folderPath   String?  @map("folder_path")
+  deliveryState String? @map("delivery_state")
+  contentState  String? @map("content_state")
+  totalPrice   Float?   @map("total_price")
+  depositAmount Float?  @map("deposit_amount")
+  amountPaid   Float?   @map("amount_paid")
+  balanceRemaining Float? @map("balance_remaining")
+  paymentStatus String? @map("payment_status")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @map("updated_at")
+
+  @@index([workspaceId, updatedAt], map: "idx_projects_workspace_id_updated_at")
+  @@map("projects")
+}
+
+model RoomSetting {
+  id         String   @id
+  workspaceId String  @map("workspace_id")
+  room       String
+  projectId  String?  @map("project_id")
+  assistMode String   @map("assist_mode")
+  updatedAt  DateTime @default(now()) @map("updated_at")
+
+  @@unique([room, projectId], map: "idx_room_settings_room_project")
+  @@index([workspaceId], map: "idx_room_settings_workspace_id")
+  @@map("room_settings")
+}
+
+model StudioSession {
+  id         String   @id
+  workspaceId String  @map("workspace_id")
+  room       String
+  projectId  String?  @map("project_id")
+  status     String?
+  lastAction String?  @map("last_action")
+  lastOutput String?  @map("last_output")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt], map: "idx_sessions_workspace_id_created_at")
+  @@map("sessions")
+}
+
+model StudioEvent {
+  id         String   @id
+  workspaceId String  @map("workspace_id")
+  room       String
+  projectId  String?  @map("project_id")
+  agentId    String?  @map("agent_id")
+  eventType  String   @map("event_type")
+  status     String
+  summary    String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt], map: "idx_events_workspace_id_created_at")
+  @@map("events")
+}
+
+model Approval {
+  id         String   @id
+  workspaceId String  @map("workspace_id")
+  actionType String   @map("action_type")
+  room       String
+  projectId  String?  @map("project_id")
+  status     String
+  payloadJson String? @map("payload_json")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt], map: "idx_approvals_workspace_id_created_at")
+  @@map("approvals")
+}
+
+model Draft {
+  id         String   @id
+  workspaceId String  @map("workspace_id")
+  projectId  String?  @map("project_id")
+  room       String
+  draftType  String   @map("draft_type")
+  content    String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt], map: "idx_drafts_workspace_id_created_at")
+  @@map("drafts")
+}
+
+model Handoff {
+  id         String   @id
+  workspaceId String  @map("workspace_id")
+  fromRoom   String   @map("from_room")
+  toRoom     String   @map("to_room")
+  payloadJson String  @map("payload_json")
+  status     String   @default("pending")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt], map: "idx_handoffs_workspace_id_created_at")
+  @@map("handoffs")
+}
+
+model StudioInvoice {
+  id         String   @id
+  workspaceId String  @map("workspace_id")
+  projectId  String?  @map("project_id")
+  amount     Float    @default(0)
+  status     String   @default("draft")
+  createdAt  DateTime @default(now()) @map("created_at")
+  dueDate    String?  @map("due_date")
+
+  @@index([workspaceId, createdAt], map: "idx_invoices_workspace_id_created_at")
+  @@map("invoices")
+}
+
+model StudioExpense {
+  id         String   @id
+  workspaceId String  @map("workspace_id")
+  projectId  String?  @map("project_id")
+  category   String?
+  amount     Float    @default(0)
+  note       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt], map: "idx_expenses_workspace_id_created_at")
+  @@map("expenses")
+}
+
+model Payment {
+  id         String   @id
+  workspaceId String  @map("workspace_id")
+  projectId  String?  @map("project_id")
+  amount     Float    @default(0)
+  date       String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt], map: "idx_payments_workspace_id_created_at")
+  @@map("payments")
+}
+
+model Summary {
+  id         String   @id
+  workspaceId String  @map("workspace_id")
+  type       String
+  content    String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt], map: "idx_summaries_workspace_id_created_at")
+  @@map("summaries")
+}
+
+model Reminder {
+  id         String   @id
+  workspaceId String  @map("workspace_id")
+  projectId  String?  @map("project_id")
+  type       String
+  message    String
+  dueDate    String   @map("due_date")
+  status     String   @default("pending")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt], map: "idx_reminders_workspace_id_created_at")
+  @@map("reminders")
+}
+
+model Job {
+  id         String   @id
+  workspaceId String  @map("workspace_id")
+  projectId  String?  @map("project_id")
+  jobType    String?  @map("job_type")
+  status     String?
+  inputJson  String?  @map("input_json")
+  resultJson String?  @map("result_json")
+  resultSummary String? @map("result_summary")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt], map: "idx_jobs_workspace_id_created_at")
+  @@map("jobs")
+}

@@ -4,7 +4,7 @@ import { StudioShell } from "@/components/studio/StudioShell";
 import { getMissionControl } from "../actions";
 import { isDemoMode } from "@/lib/runtime/demo";
 import { requireWorkspaceContext } from "@/lib/auth/workspaceContext";
-import { hasWorkspaceProfile } from "@/lib/profile/store";
+import { hasWorkspaceProfileAsync } from "@/lib/profile/store";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 export default async function DashboardPage() {
   const ctx = await requireWorkspaceContext();
-  if (!hasWorkspaceProfile(ctx.workspaceId)) {
+  if (!(await hasWorkspaceProfileAsync(ctx.workspaceId))) {
     redirect("/onboarding");
   }
   const data = await getMissionControl();

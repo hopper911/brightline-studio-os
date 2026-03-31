@@ -1,13 +1,13 @@
 import "server-only";
 
-import { getDb } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 
-export function resolveWorkspaceId(explicit?: string): string {
+export async function resolveWorkspaceId(explicit?: string): Promise<string> {
   if (explicit && explicit.trim()) return explicit;
-  const db = getDb();
-  const row = db
-    .prepare("SELECT id FROM workspaces ORDER BY created_at ASC LIMIT 1")
-    .get() as { id: string } | undefined;
+  const row = await prisma.workspace.findFirst({
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+  });
   if (!row?.id) {
     throw new Error("No workspace exists. Database bootstrap did not run.");
   }
