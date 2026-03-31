@@ -17,11 +17,12 @@ const DB_PATH = path.join(DATA_DIR, "studio.db");
 const SCHEMA_PATH = path.join(process.cwd(), "lib", "db", "schema.sql");
 
 /** Instance type only — avoids loading the native addon at module init (needed for Vercel). */
-type SqliteDb = InstanceType<typeof import("better-sqlite3").default>;
+// better-sqlite3 uses `export =` (no `.default`); see @types/better-sqlite3
+type SqliteDb = InstanceType<typeof import("better-sqlite3")>;
 
 let db: SqliteDb | null = null;
 
-function loadBetterSqlite(): typeof import("better-sqlite3").default {
+function loadBetterSqlite(): typeof import("better-sqlite3") {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require("better-sqlite3");
 }
