@@ -1,11 +1,10 @@
 /**
- * Bright Line Studio OS – approval store (SQLite)
+ * Bright Line Studio OS – approval store (Postgres via Prisma)
  *
  * Tracks pending approvals. Approve or reject actions.
  */
 
-import { getDb } from "@/lib/db";
-import { resolveWorkspaceId } from "@/lib/db/workspace";
+import { prisma } from "@/lib/prisma";
 import { assertNotDemoMode } from "@/lib/runtime/demoGuard";
 
 export type Approval = {
@@ -30,17 +29,26 @@ export type CreateApprovalInput = {
   projectId?: string | null;
 };
 
-export function createApproval(input: CreateApprovalInput): Approval {
+export async function createApproval(input: CreateApprovalInput): Promise<Approval> {
   assertNotDemoMode("Creating approvals");
   const id = nextId();
-  const createdAt = new Date().toISOString();
+  const createdAt = new Date();
   const payloadJson = JSON.stringify(input.payload ?? null);
-  const db = getDb();
-  const wsId = resolveWorkspaceId(input.workspaceId);
-  const stmt = db.prepare(
-    "INSERT INTO approvals (id, workspace_id, action_type, room, project_id, status, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  );
-  stmt.run(id, wsId, input.actionType, input.room, input.projectId ?? null, "pending", payloadJson);
+  const wsId = input.workspaceId?.trim() ? input.workspaceId : null;
+  if (!wsId) throw new Error("workspaceId_required");
+
+  await prisma.approval.create({
+    data: {
+      id,
+      workspaceId: wsId,
+      actionType: input.actionType,
+      room: input.room,
+      projectId: input.projectId ?? null,
+      status: "pending",
+      payloadJson,
+      createdAt,
+    },
+  });
   return {
     id,
     workspaceId: wsId,
@@ -48,84 +56,111 @@ export function createApproval(input: CreateApprovalInput): Approval {
     room: input.room,
     status: "pending",
     payloadJson,
-    createdAt,
+    createdAt: createdAt.toISOString(),
   };
 }
 
-export function getApprovalsByProject(projectId: string): Approval[] {
+export async function getApprovalsByProject(projectId: string): Promise<Approval[]> {
   return getApprovalsByProjectForWorkspace(undefined, projectId);
 }
 
-export function getApprovalsByProjectForWorkspace(workspaceId: string | undefined, projectId: string): Approval[] {
-  const db = getDb();
-  const wsId = resolveWorkspaceId(workspaceId);
-  try {
-    const rows = db
-      .prepare(
-        "SELECT id, workspace_id AS workspaceId, action_type AS actionType, room, status, payload_json AS payloadJson, created_at AS createdAt FROM approvals WHERE workspace_id = ? AND project_id = ? ORDER BY created_at DESC"
-      )
-      .all(wsId, projectId) as Approval[];
-    return rows;
-  } catch {
-    return [];
-  }
+export async function getApprovalsByProjectForWorkspace(
+  workspaceId: string | undefined,
+  projectId: string
+): Promise<Approval[]> {
+  const wsId = workspaceId?.trim() ? workspaceId : null;
+  if (!wsId) throw new Error("workspaceId_required");
+  const rows = await prisma.approval.findMany({
+    where: { workspaceId: wsId, projectId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, workspaceId: true, actionType: true, room: true, status: true, payloadJson: true, createdAt: true },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    workspaceId: r.workspaceId,
+    actionType: r.actionType,
+    room: r.room,
+    status: r.status as Approval["status"],
+    payloadJson: r.payloadJson ?? null,
+    createdAt: r.createdAt.toISOString(),
+  }));
 }
 
-export function getPendingApprovals(): Approval[] {
+export async function getPendingApprovals(): Promise<Approval[]> {
   return getPendingApprovalsForWorkspace(undefined);
 }
 
-export function getPendingApprovalsForWorkspace(workspaceId: string | undefined): Approval[] {
-  const db = getDb();
-  const wsId = resolveWorkspaceId(workspaceId);
-  const rows = db
-    .prepare(
-      "SELECT id, workspace_id AS workspaceId, action_type AS actionType, room, status, payload_json AS payloadJson, created_at AS createdAt FROM approvals WHERE workspace_id = ? AND status = 'pending' ORDER BY created_at ASC"
-    )
-    .all(wsId) as Approval[];
-  return rows;
+export async function getPendingApprovalsForWorkspace(workspaceId: string | undefined): Promise<Approval[]> {
+  const wsId = workspaceId?.trim() ? workspaceId : null;
+  if (!wsId) throw new Error("workspaceId_required");
+  const rows = await prisma.approval.findMany({
+    where: { workspaceId: wsId, status: "pending" },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, workspaceId: true, actionType: true, room: true, status: true, payloadJson: true, createdAt: true },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    workspaceId: r.workspaceId,
+    actionType: r.actionType,
+    room: r.room,
+    status: r.status as Approval["status"],
+    payloadJson: r.payloadJson ?? null,
+    createdAt: r.createdAt.toISOString(),
+  }));
 }
 
-export function approveAction(id: string): Approval | null {
+export async function approveAction(id: string): Promise<Approval | null> {
   assertNotDemoMode("Approving actions");
   return approveActionForWorkspace(undefined, id);
 }
 
-export function approveActionForWorkspace(workspaceId: string | undefined, id: string): Approval | null {
+export async function approveActionForWorkspace(workspaceId: string | undefined, id: string): Promise<Approval | null> {
   assertNotDemoMode("Approving actions");
-  const db = getDb();
-  const wsId = resolveWorkspaceId(workspaceId);
-  const stmt = db.prepare(
-    "UPDATE approvals SET status = 'approved' WHERE workspace_id = ? AND id = ? AND status = 'pending'"
-  );
-  const result = stmt.run(wsId, id);
-  if (result.changes === 0) return null;
-  const row = db
-    .prepare(
-      "SELECT id, workspace_id AS workspaceId, action_type AS actionType, room, status, payload_json AS payloadJson, created_at AS createdAt FROM approvals WHERE workspace_id = ? AND id = ?"
-    )
-    .get(wsId, id) as Approval | undefined;
-  return row ?? null;
+  const wsId = workspaceId?.trim() ? workspaceId : null;
+  if (!wsId) throw new Error("workspaceId_required");
+  const updated = await prisma.approval.updateMany({ where: { workspaceId: wsId, id, status: "pending" }, data: { status: "approved" } });
+  if (updated.count === 0) return null;
+  const row = await prisma.approval.findFirst({
+    where: { workspaceId: wsId, id },
+    select: { id: true, workspaceId: true, actionType: true, room: true, status: true, payloadJson: true, createdAt: true },
+  });
+  return row
+    ? {
+        id: row.id,
+        workspaceId: row.workspaceId,
+        actionType: row.actionType,
+        room: row.room,
+        status: row.status as Approval["status"],
+        payloadJson: row.payloadJson ?? null,
+        createdAt: row.createdAt.toISOString(),
+      }
+    : null;
 }
 
-export function rejectAction(id: string): Approval | null {
+export async function rejectAction(id: string): Promise<Approval | null> {
   assertNotDemoMode("Rejecting actions");
   return rejectActionForWorkspace(undefined, id);
 }
 
-export function rejectActionForWorkspace(workspaceId: string | undefined, id: string): Approval | null {
+export async function rejectActionForWorkspace(workspaceId: string | undefined, id: string): Promise<Approval | null> {
   assertNotDemoMode("Rejecting actions");
-  const db = getDb();
-  const wsId = resolveWorkspaceId(workspaceId);
-  const stmt = db.prepare(
-    "UPDATE approvals SET status = 'rejected' WHERE workspace_id = ? AND id = ? AND status = 'pending'"
-  );
-  const result = stmt.run(wsId, id);
-  if (result.changes === 0) return null;
-  const row = db
-    .prepare(
-      "SELECT id, workspace_id AS workspaceId, action_type AS actionType, room, status, payload_json AS payloadJson, created_at AS createdAt FROM approvals WHERE workspace_id = ? AND id = ?"
-    )
-    .get(wsId, id) as Approval | undefined;
-  return row ?? null;
+  const wsId = workspaceId?.trim() ? workspaceId : null;
+  if (!wsId) throw new Error("workspaceId_required");
+  const updated = await prisma.approval.updateMany({ where: { workspaceId: wsId, id, status: "pending" }, data: { status: "rejected" } });
+  if (updated.count === 0) return null;
+  const row = await prisma.approval.findFirst({
+    where: { workspaceId: wsId, id },
+    select: { id: true, workspaceId: true, actionType: true, room: true, status: true, payloadJson: true, createdAt: true },
+  });
+  return row
+    ? {
+        id: row.id,
+        workspaceId: row.workspaceId,
+        actionType: row.actionType,
+        room: row.room,
+        status: row.status as Approval["status"],
+        payloadJson: row.payloadJson ?? null,
+        createdAt: row.createdAt.toISOString(),
+      }
+    : null;
 }

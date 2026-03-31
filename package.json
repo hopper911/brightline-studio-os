@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "npm exec -- prisma generate && next build",
+    "build:instrumented": "node scripts/instrumented-build.mjs",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "npm exec -- prisma generate",

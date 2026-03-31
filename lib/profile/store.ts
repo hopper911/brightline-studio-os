@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getDb } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 import { resolveWorkspaceId } from "@/lib/db/workspace";
 import { isVercelVisualOnly } from "@/lib/runtime/vercel";
 
@@ -62,60 +62,85 @@ function rowToProfile(row: Record<string, unknown>): WorkspaceProfile {
 }
 
 export function getWorkspaceProfile(workspaceId?: string): WorkspaceProfile | null {
-  if (isVercelVisualOnly()) return null;
-
-  const db = getDb();
-  const wsId = resolveWorkspaceId(workspaceId);
-  const row = db
-    .prepare(
-      `SELECT workspace_id AS workspaceId,
-              business_type AS businessType,
-              services_offered_json AS servicesJson,
-              main_location AS mainLocation,
-              goals_json AS goalsJson,
-              created_at AS createdAt,
-              updated_at AS updatedAt
-       FROM workspace_profile
-       WHERE workspace_id = ?
-       LIMIT 1`
-    )
-    .get(wsId) as Record<string, unknown> | undefined;
-  return row ? rowToProfile(row) : null;
+  throw new Error("getWorkspaceProfile() is synchronous but Postgres access is async; use getWorkspaceProfileAsync().");
 }
 
 export function hasWorkspaceProfile(workspaceId?: string): boolean {
-  if (isVercelVisualOnly()) return true;
-
-  const db = getDb();
-  const wsId = resolveWorkspaceId(workspaceId);
-  const row = db
-    .prepare("SELECT workspace_id AS workspaceId FROM workspace_profile WHERE workspace_id = ? LIMIT 1")
-    .get(wsId) as { workspaceId: string } | undefined;
-  return Boolean(row?.workspaceId);
+  throw new Error("hasWorkspaceProfile() is synchronous but Postgres access is async; use hasWorkspaceProfileAsync().");
 }
 
 export function upsertWorkspaceProfile(input: UpsertWorkspaceProfileInput): WorkspaceProfile {
-  const db = getDb();
-  const wsId = resolveWorkspaceId(input.workspaceId);
-  const now = new Date().toISOString();
+  throw new Error("upsertWorkspaceProfile() is synchronous but Postgres access is async; use upsertWorkspaceProfileAsync().");
+}
 
+function iso(d: Date | null | undefined): string {
+  return d ? d.toISOString() : new Date(0).toISOString();
+}
+
+export async function getWorkspaceProfileAsync(workspaceId?: string): Promise<WorkspaceProfile | null> {
+  if (isVercelVisualOnly()) return null;
+  const wsId = await resolveWorkspaceId(workspaceId);
+  const row = await prisma.workspaceProfile.findFirst({
+    where: { workspaceId: wsId },
+    select: {
+      workspaceId: true,
+      businessType: true,
+      servicesOfferedJson: true,
+      mainLocation: true,
+      goalsJson: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+  if (!row) return null;
+  return rowToProfile({
+    workspaceId: row.workspaceId,
+    businessType: row.businessType,
+    servicesJson: row.servicesOfferedJson,
+    mainLocation: row.mainLocation,
+    goalsJson: row.goalsJson,
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  });
+}
+
+export async function hasWorkspaceProfileAsync(workspaceId?: string): Promise<boolean> {
+  if (isVercelVisualOnly()) return true;
+  const wsId = await resolveWorkspaceId(workspaceId);
+  const row = await prisma.workspaceProfile.findFirst({ where: { workspaceId: wsId }, select: { workspaceId: true } });
+  return Boolean(row?.workspaceId);
+}
+
+export async function upsertWorkspaceProfileAsync(input: UpsertWorkspaceProfileInput): Promise<WorkspaceProfile> {
+  const wsId = await resolveWorkspaceId(input.workspaceId);
+  const now = new Date();
   const services = input.servicesOffered.map((s) => s.trim()).filter(Boolean);
   const goalsJson = JSON.stringify([input.mainGoal]);
   const servicesJson = JSON.stringify(services);
 
-  db.prepare(
-    `INSERT INTO workspace_profile
-      (workspace_id, business_type, services_offered_json, main_location, goals_json, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(workspace_id) DO UPDATE SET
-       business_type = excluded.business_type,
-       services_offered_json = excluded.services_offered_json,
-       main_location = excluded.main_location,
-       goals_json = excluded.goals_json,
-       updated_at = excluded.updated_at`
-  ).run(wsId, input.photographyType, servicesJson, input.mainLocation.trim(), goalsJson, now, now);
+  await prisma.workspaceProfile.upsert({
+    where: { workspaceId: wsId },
+    create: {
+      workspaceId: wsId,
+      businessType: input.photographyType,
+      servicesOfferedJson: servicesJson,
+      mainLocation: input.mainLocation.trim(),
+      goalsJson,
+      createdAt: now,
+      updatedAt: now,
+    },
+    update: {
+      businessType: input.photographyType,
+      servicesOfferedJson: servicesJson,
+      mainLocation: input.mainLocation.trim(),
+      goalsJson,
+      updatedAt: now,
+    },
+  });
 
-  return getWorkspaceProfile(wsId)!;
+  const out = await getWorkspaceProfileAsync(wsId);
+  if (!out) throw new Error("Failed to upsert workspace profile");
+  return out;
 }
 
 export function getWorkspaceProfileContextString(profile: WorkspaceProfile | null): string {

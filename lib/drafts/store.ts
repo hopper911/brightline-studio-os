@@ -1,11 +1,10 @@
 /**
- * Bright Line Studio OS – draft store (SQLite)
+ * Bright Line Studio OS – draft store (Postgres via Prisma)
  *
- * Persists drafts to data/studio.db.
+ * Persists drafts to Postgres.
  */
 
-import { getDb } from "@/lib/db";
-import { resolveWorkspaceId } from "@/lib/db/workspace";
+import { prisma } from "@/lib/prisma";
 import { assertNotDemoMode } from "@/lib/runtime/demoGuard";
 import { trackUsage } from "@/lib/usage/track";
 
@@ -31,16 +30,25 @@ export type SaveDraftInput = {
   userId?: string;
 };
 
-export function saveDraft(input: SaveDraftInput): Draft {
+export async function saveDraft(input: SaveDraftInput): Promise<Draft> {
   assertNotDemoMode("Saving drafts");
   const id = nextId();
-  const createdAt = new Date().toISOString();
-  const db = getDb();
-  const wsId = resolveWorkspaceId(input.workspaceId);
-  const stmt = db.prepare(
-    "INSERT INTO drafts (id, workspace_id, project_id, room, draft_type, content) VALUES (?, ?, ?, ?, ?, ?)"
-  );
-  stmt.run(id, wsId, input.projectId ?? null, input.room, input.type, input.content);
+  const createdAt = new Date();
+  const wsId = input.workspaceId?.trim() ? input.workspaceId : null;
+  if (!wsId) throw new Error("workspaceId_required");
+
+  await prisma.draft.create({
+    data: {
+      id,
+      workspaceId: wsId,
+      projectId: input.projectId ?? null,
+      room: input.room,
+      draftType: input.type,
+      content: input.content,
+      createdAt,
+    },
+  });
+
   trackUsage({
     workspaceId: wsId,
     userId: input.userId,
@@ -48,29 +56,31 @@ export function saveDraft(input: SaveDraftInput): Draft {
     quantity: 1,
     meta: { room: input.room, draftType: input.type, projectId: input.projectId ?? null },
   });
-  return { id, createdAt, projectId: input.projectId, ...input };
+  return { id, createdAt: createdAt.toISOString(), projectId: input.projectId, ...input };
 }
 
-export function getDrafts(room?: string, projectId?: string): Draft[] {
+export async function getDrafts(room?: string, projectId?: string): Promise<Draft[]> {
   return getDraftsForWorkspace(undefined, room, projectId);
 }
 
-export function getDraftsForWorkspace(workspaceId: string | undefined, room?: string, projectId?: string): Draft[] {
-  const db = getDb();
-  const wsId = resolveWorkspaceId(workspaceId);
-  let sql =
-    "SELECT id, workspace_id AS workspaceId, project_id AS projectId, room, draft_type AS type, content, created_at AS createdAt FROM drafts WHERE workspace_id = ?";
-  const params: (string | null)[] = [];
-  params.push(wsId);
-  if (room) {
-    sql += " AND room = ?";
-    params.push(room);
-  }
-  if (projectId) {
-    sql += " AND project_id = ?";
-    params.push(projectId);
-  }
-  sql += " ORDER BY created_at DESC";
-  const rows = db.prepare(sql).all(...params) as Draft[];
-  return rows;
+export async function getDraftsForWorkspace(
+  workspaceId: string | undefined,
+  room?: string,
+  projectId?: string
+): Promise<Draft[]> {
+  const wsId = workspaceId?.trim() ? workspaceId : null;
+  if (!wsId) throw new Error("workspaceId_required");
+  const rows = await prisma.draft.findMany({
+    where: { workspaceId: wsId, ...(room ? { room } : {}), ...(projectId ? { projectId } : {}) },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, projectId: true, room: true, draftType: true, content: true, createdAt: true },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    type: r.draftType,
+    room: r.room,
+    content: r.content,
+    createdAt: r.createdAt.toISOString(),
+    projectId: r.projectId ?? undefined,
+  }));
 }
