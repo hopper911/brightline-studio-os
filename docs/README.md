@@ -18,5 +18,6 @@ Source of truth for Bright Line Studio OS. Rule: docs first, then code.
 
 - [Vision & positioning](00-overview/vision.md)
 - [Architecture](02-architecture/system_design.md)
+- [Mission control — full project diagram](02-architecture/mission_control_architecture.md)
 - [Deployment setup](03-engineering/setup.md)
 - [AI agent rules](05-ai/ai_rules.md)

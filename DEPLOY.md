@@ -39,6 +39,23 @@ In **Vercel → Project → Settings → Environment Variables**, add for **Prod
 
 After saving, **redeploy** (Deployments → … → Redeploy) or push a new commit.
 
+## One-shot: push from your Mac (GitHub → Vercel)
+
+Use the **Studio OS repo folder only** as your Git root (for example `~/Desktop/studio-os-standalone`). Do not run `git` from a parent directory that contains your whole Desktop — status will be slow and you may stage unrelated files.
+
+From that project folder:
+
+```bash
+cd ~/Desktop/studio-os-standalone
+rm -f .git/index.lock   # only if a previous git command left a stale lock
+git add -A
+git status
+git commit -m "chore: prisma build via npm exec; deploy docs" || true
+git push origin main
+```
+
+Confirm Vercel shows a new deployment for the commit you just pushed.
+
 ## Notes
 
 - Without a real `DATABASE_URL`, CRM and Projects API routes will show "Database not configured".

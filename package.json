@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "npm exec -- prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "db:generate": "prisma generate",
+    "db:generate": "npm exec -- prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:init": "node scripts/init-db.mjs",

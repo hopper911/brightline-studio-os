@@ -42,19 +42,6 @@ async function readCookieIds(): Promise<{ workspaceId: string | null; userId: st
   return { workspaceId, userId };
 }
 
-async function setCookieIds(params: { workspaceId: string; userId: string }): Promise<void> {
-  const jar = await cookies();
-  const base = { httpOnly: true, sameSite: "lax" as const, path: "/" };
-  // Next.js 15: cookies can only be mutated in Server Actions / Route Handlers.
-  // If this is accidentally invoked from a Server Component render path, avoid hard-crashing.
-  try {
-    jar.set(COOKIE_WORKSPACE, params.workspaceId, base);
-    jar.set(COOKIE_USER, params.userId, base);
-  } catch {
-    // ignore
-  }
-}
-
 function ensureBootstrapWorkspaceAndUser(): WorkspaceContext {
   const db = getDbLazy();
   const now = new Date().toISOString();
@@ -147,14 +134,4 @@ export async function requireWorkspaceContext(): Promise<WorkspaceContext> {
 
   const boot = ensureBootstrapWorkspaceAndUser();
   return boot;
-}
-
-/**
- * Explicitly re-selects (or initializes) workspace context and sets cookies.
- * Useful for onboarding flows where you want to guarantee identity exists.
- */
-export async function ensureWorkspaceContextCookies(): Promise<WorkspaceContext> {
-  const ctx = await requireWorkspaceContext();
-  await setCookieIds({ workspaceId: ctx.workspaceId, userId: ctx.userId });
-  return ctx;
 }

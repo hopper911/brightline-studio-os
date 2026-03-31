@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { ensureWorkspaceContextCookies } from "@/lib/auth/workspaceContext";
+import { ensureWorkspaceContextCookies } from "@/lib/auth/workspaceContextCookies";
 
 const onboardingSchema = z.object({
   businessType: z.string().min(1).max(120),
