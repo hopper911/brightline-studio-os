@@ -133,7 +133,7 @@ model Asset {
 model Workspace {
   id        String   @id
   name      String
-  ownerId   String   @map("owner_id")
+  ownerId   String   @unique @map("owner_id")
   planId    String   @default("starter") @map("plan_id")
   createdAt DateTime @default(now()) @map("created_at")
 

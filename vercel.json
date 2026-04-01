@@ -1,9 +1,0 @@
-{
-  "buildCommand": "npm exec -- prisma generate && next build",
-  "framework": "nextjs",
-  "build": {
-    "env": {
-      "DATABASE_URL": "postgresql://vercel:vercel@localhost:5432/vercel?schema=public"
-    }
-  }
-}
